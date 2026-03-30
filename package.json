@@ -1,0 +1,17 @@
+{
+  "name": "rock-cli",
+  "module": "index.ts",
+  "type": "module",
+  "bin": {
+    "rock": "./bin/rock.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "commander": "^13"
+  }
+}
