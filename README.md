@@ -180,7 +180,7 @@ Run `rock resource list` for the full list of all 317 resources.
 1. In Rock, go to **Admin Tools > Security > REST Keys**
 2. Create a new REST key
 3. Add the REST key's person to the **RSR - Rock Administration** security role
-4. Grant **ExecuteRead**, **ExecuteWrite**, **ExecuteUnrestrictedRead**, and **ExecuteUnrestrictedWrite** on all v2 REST controllers (see project wiki for bulk SQL script)
+4. Grant **ExecuteRead**, **ExecuteWrite**, **ExecuteUnrestrictedRead**, and **ExecuteUnrestrictedWrite** on all v2 REST controllers (see [v2 API Setup Guide](docs/rock-rms-v2-api-setup.md) for bulk SQL script)
 5. Clear the Rock cache after permission changes
 
 ## License
