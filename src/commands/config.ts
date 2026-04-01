@@ -90,14 +90,25 @@ export function makeConfigCommand(): Command {
 		.action(() => {
 			console.log("Upgrading rock-cli to latest version...");
 			try {
+				console.log("Clearing bun cache...");
+				execSync("bun remove -g rock-cli", {
+					encoding: "utf-8",
+					stdio: "pipe",
+				});
+				execSync("bun cache clean", {
+					encoding: "utf-8",
+					stdio: "pipe",
+				});
+				console.log("Installing latest from GitHub...");
 				const output = execSync("bun add -g github:leighton-tidwell/rock-cli", {
 					encoding: "utf-8",
 					stdio: "pipe",
 				});
 				console.log(output);
 				console.log("Upgrade complete.");
-			} catch (err: any) {
-				console.error("Upgrade failed:", err.stderr || err.message);
+			} catch (err: unknown) {
+				const e = err as { stderr?: string; message?: string };
+				console.error("Upgrade failed:", e.stderr || e.message);
 				process.exit(1);
 			}
 		});
