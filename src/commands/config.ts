@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { execSync } from "node:child_process";
 import { loadConfig, saveConfig, type RockConfig } from "../config.ts";
 
 export function makeConfigCommand(): Command {
@@ -81,6 +82,24 @@ export function makeConfigCommand(): Command {
       cfg.profiles[name] = { url: opts.url, apiKey: opts.key };
       saveConfig(cfg);
       console.log(`Profile '${name}' created.`);
+    });
+
+  config
+    .command("upgrade")
+    .description("Upgrade rock-cli to the latest version")
+    .action(() => {
+      console.log("Upgrading rock-cli to latest version...");
+      try {
+        const output = execSync(
+          "bun add -g github:leighton-tidwell/rock-cli",
+          { encoding: "utf-8", stdio: "pipe" }
+        );
+        console.log(output);
+        console.log("Upgrade complete.");
+      } catch (err: any) {
+        console.error("Upgrade failed:", err.stderr || err.message);
+        process.exit(1);
+      }
     });
 
   return config;

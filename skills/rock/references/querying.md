@@ -1,388 +1,361 @@
-# Querying Reference
+# Querying Reference (v2 Dynamic LINQ)
 
-Rock RMS uses OData v3 query parameters for filtering, selecting, expanding, and paginating API results. This is the most important reference for building effective queries.
+The Rock RMS v2 API uses Dynamic LINQ for querying. This is NOT OData.
+Do not use OData syntax ($filter, eq, etc.) with the v2 resource commands.
 
-**Related**: All other references use the patterns documented here.
-
-## Contents
-
-- [Two-Tier Data Model](#two-tier-data-model)
-- [$filter](#filter)
-- [$select](#select)
-- [$expand](#expand)
-- [$orderby](#orderby)
-- [$top and $skip](#top-and-skip)
-- [loadAttributes](#loadattributes)
-- [Combining Parameters](#combining-parameters)
-- [Common Gotchas](#common-gotchas)
-
-## Two-Tier Data Model
-
-Rock stores data in two tiers. Understanding this distinction is critical.
-
-### Tier 1: Database Fields
-
-Standard columns on the entity table (e.g., `FirstName`, `LastName`, `Email` on People). These fields:
-
-- Support `$filter`, `$select`, `$orderby`
-- Are always returned in API responses
-- Have predictable types (string, int, datetime, bool)
-
-### Tier 2: Attributes
-
-Custom fields stored in the attribute/attribute-value system (e.g., "Baptism Date", "T-Shirt Size"). These fields:
-
-- Do **NOT** support `$filter` -- you cannot filter by attribute values via OData
-- Do **NOT** support `$orderby`
-- Must be explicitly requested via `loadAttributes=simple` or `loadAttributes=expanded`
-- Appear under the `AttributeValues` key in the response
-
-### Practical Implication
-
-To find people baptized after a certain date, you cannot do this:
-
-```
-# WRONG -- attributes cannot be filtered via OData
-$filter=BaptismDate gt datetime'2025-01-01'
-```
-
-Instead, fetch records with attributes loaded and filter client-side:
+## Search Command Syntax
 
 ```bash
-rock raw get "/api/People?\$top=500&loadAttributes=simple" --json
-# Then filter the AttributeValues.BaptismDate in your code
+rock resource search <Resource> [options]
 ```
 
-## $filter
+| Option     | Description                                |
+|------------|--------------------------------------------|
+| `--where`  | Dynamic LINQ filter expression             |
+| `--select` | Projection (choose which fields to return) |
+| `--sort`   | Sort expression                            |
+| `--take`   | Max number of records to return            |
+| `--offset` | Number of records to skip (pagination)     |
 
-Filter results based on database field values.
+## Comparison Operators
 
-### Comparison Operators
+| Operator | Meaning            | Example                                          |
+|----------|--------------------|--------------------------------------------------|
+| `==`     | Equal              | `LastName == "Smith"`                            |
+| `!=`     | Not equal          | `Gender != 0`                                    |
+| `>`      | Greater than       | `BirthYear > 1990`                               |
+| `<`      | Less than          | `TotalAmount < 100.00`                           |
+| `>=`     | Greater or equal   | `CreatedDateTime >= DateTime(2024, 1, 1)`        |
+| `<=`     | Less or equal      | `Id <= 500`                                      |
+
+## Logical Operators
 
 | Operator | Meaning | Example |
 |----------|---------|---------|
-| `eq` | Equal | `LastName eq 'Smith'` |
-| `ne` | Not equal | `Gender ne 0` |
-| `gt` | Greater than | `BirthYear gt 1990` |
-| `lt` | Less than | `BirthYear lt 2000` |
-| `ge` | Greater than or equal | `TransactionDateTime ge datetime'2025-01-01'` |
-| `le` | Less than or equal | `TransactionDateTime le datetime'2025-12-31'` |
+| `&&`     | AND     | `LastName == "Smith" && IsDeceased == false`     |
+| `\|\|`   | OR      | `LastName == "Smith" \|\| LastName == "Jones"`   |
+| `!`      | NOT     | `!IsDeceased`                                    |
 
-### Logical Operators
-
-| Operator | Meaning | Example |
-|----------|---------|---------|
-| `and` | Both conditions | `LastName eq 'Smith' and IsDeceased eq false` |
-| `or` | Either condition | `LastName eq 'Smith' or LastName eq 'Jones'` |
-
-Parentheses group logic:
-
+Group with parentheses:
 ```
-(LastName eq 'Smith' or LastName eq 'Jones') and IsDeceased eq false
+(LastName == "Smith" || LastName == "Jones") && IsDeceased == false
 ```
 
-### String Functions
-
-| Function | Description | Example |
-|----------|-------------|---------|
-| `startswith(field, 'val')` | Starts with | `startswith(LastName, 'Sm')` |
-| `endswith(field, 'val')` | Ends with | `endswith(Email, '@gmail.com')` |
-
-### Collection Functions
-
-Use `any()` and `all()` to filter on related collections:
-
-```
-# People with any phone number starting with '555'
-PhoneNumbers/any(p: startswith(p/Number, '555'))
-
-# Groups where all members are active
-Members/all(m: m/GroupMemberStatus eq 1)
-```
-
-### Data Type Syntax
-
-| Type | Syntax | Example |
-|------|--------|---------|
-| String | Single quotes | `LastName eq 'Smith'` |
-| Integer | No quotes | `CampusId eq 1` |
-| Boolean | No quotes | `IsActive eq true` |
-| DateTime | `datetime` prefix | `CreatedDateTime ge datetime'2025-01-01'` |
-| Null | `null` keyword | `CampusId eq null` |
-
-### CLI Examples
+## String Methods
 
 ```bash
-# Simple equality
-rock raw get "/api/People?\$filter=LastName eq 'Smith'" --json
+# Contains
+--where 'LastName.Contains("mit")'
 
-# Date range
-rock raw get "/api/FinancialTransactions?\$filter=TransactionDateTime ge datetime'2025-01-01' and TransactionDateTime le datetime'2025-12-31'" --json
+# Starts with
+--where 'LastName.StartsWith("Sm")'
 
-# String function
-rock raw get "/api/People?\$filter=startswith(Email, 'john')" --json
+# Ends with
+--where 'Email.EndsWith("@gmail.com")'
 
-# Collection filter
-rock raw get "/api/People?\$filter=PhoneNumbers/any(p: startswith(p/Number, '555'))" --json
+# Case-insensitive comparison
+--where 'LastName.ToUpper() == "SMITH"'
 
-# Null check
-rock raw get "/api/Groups?\$filter=CampusId ne null" --json
-
-# Combined logic
-rock raw get "/api/People?\$filter=(LastName eq 'Smith' or LastName eq 'Jones') and RecordStatusValueId eq 3" --json
+# String length
+--where 'LastName.Length > 10'
 ```
 
-## $select
+## Collection Methods
 
-Limit which fields are returned. Reduces response size and improves performance.
+Used for querying related collections (navigation properties):
 
 ```bash
-# Return only Id, FirstName, LastName
-rock raw get "/api/People?\$select=Id,FirstName,LastName" --json
+# Any phone number starts with area code
+--where 'PhoneNumbers.Any(Number.StartsWith("210"))'
 
-# Combine with filter
-rock raw get "/api/People?\$filter=LastName eq 'Smith'&\$select=Id,FirstName,LastName,Email" --json
+# All group members are active
+--where 'Members.All(GroupMemberStatus == 1)'
+
+# Has at least one phone number
+--where 'PhoneNumbers.Any()'
+
+# Count-based filter
+--where 'Members.Count() > 5'
+
+# Any with multiple conditions
+--where 'PhoneNumbers.Any(Number.StartsWith("210") && IsMessagingEnabled == true)'
 ```
 
-Use `$select` when you only need a few fields from a large entity.
+## DateTime Handling
 
-## $expand
-
-Include related entities in the response. Without `$expand`, related entities return only their ID.
-
-### Syntax
-
-```
-$expand=RelatedEntity
-$expand=Entity1,Entity2
-```
-
-### Common Expand Patterns
-
-| Base Entity | Expand | Result |
-|-------------|--------|--------|
-| GroupMembers | `Person` | Include full person record on each member |
-| GroupMembers | `Group` | Include full group record on each member |
-| GroupMembers | `Group,Person` | Include both |
-| Groups | `GroupType` | Include the group type definition |
-| Groups | `Campus` | Include campus details |
-| FinancialTransactions | `TransactionDetails` | Include line items |
-| ContentChannelItems | `ContentChannel` | Include parent channel |
-| CommunicationRecipients | `PersonAlias` | Include person alias |
-
-### CLI Examples
+DateTime values use the `DateTime()` constructor in Dynamic LINQ:
 
 ```bash
-# Group members with person details
-rock raw get "/api/GroupMembers?\$filter=GroupId eq 42&\$expand=Person" --json
+# Date only (year, month, day)
+--where 'TransactionDateTime >= DateTime(2024, 1, 1)'
+--where 'TransactionDateTime < DateTime(2025, 1, 1)'
 
-# Transactions with line items
-rock raw get "/api/FinancialTransactions?\$expand=TransactionDetails&\$top=10" --json
+# Date and time (year, month, day, hour, minute, second)
+--where 'CreatedDateTime >= DateTime(2024, 6, 15, 8, 0, 0)'
 
-# All groups a person belongs to
-rock raw get "/api/GroupMembers?\$filter=PersonId eq 789&\$expand=Group" --json
+# Date range (full year)
+--where 'TransactionDateTime >= DateTime(2025, 1, 1) && TransactionDateTime < DateTime(2026, 1, 1)'
+
+# Specific month
+--where 'TransactionDateTime >= DateTime(2025, 6, 1) && TransactionDateTime < DateTime(2025, 7, 1)'
+
+# Date properties
+--where 'BirthDate.Month == 12'                 # December birthdays
+--where 'BirthDate.Year == 1990'                # Born in 1990
+--where 'CreatedDateTime.Date == DateTime(2025, 3, 15)'  # Exact date
 ```
 
-### Nested Expand
-
-Some Rock instances support nested expand:
+## Null Checks
 
 ```bash
-rock raw get "/api/FinancialTransactions?\$expand=TransactionDetails(\$expand=Account)&\$top=5" --json
+# Not null
+--where 'CampusId != null'
+--where 'Email != null'
+
+# Is null
+--where 'Email == null'
+--where 'CompletedDateTime == null'     # Incomplete workflows
 ```
 
-## $orderby
+## Boolean Fields
 
-Sort results by a database field. Append `desc` for descending order.
+```bash
+--where 'IsActive == true'
+--where 'IsDeceased == false'
+--where 'IsTaxDeductible == true'
+```
+
+## Numeric Comparisons
+
+```bash
+--where 'TotalAmount > 100.00'
+--where 'GroupCapacity >= 10 && GroupCapacity <= 50'
+--where 'GroupTypeId == 25'
+--where 'RecordStatusValueId == 3'
+```
+
+## Projection with --select
+
+Use --select to return only specific fields. This reduces response size and can improve performance.
+
+```bash
+# Simple projection
+--select 'new (Id, FirstName, LastName, Email)'
+
+# Projection with navigation properties
+--select 'new (Id, Name, GroupTypeId, Campus.Name)'
+
+# Rename fields
+--select 'new (Id, FirstName as First, LastName as Last)'
+```
+
+## Sorting with --sort
 
 ```bash
 # Ascending (default)
-rock raw get "/api/People?\$orderby=LastName" --json
+--sort 'LastName'
 
 # Descending
-rock raw get "/api/FinancialTransactions?\$orderby=TransactionDateTime desc" --json
+--sort 'CreatedDateTime desc'
 
-# Multiple sort fields
-rock raw get "/api/People?\$orderby=LastName,FirstName" --json
+# Multiple fields
+--sort 'LastName, FirstName'
+
+# Mixed directions
+--sort 'LastName, FirstName desc'
+
+# Sort by related field
+--sort 'GroupType.Name, Name'
 ```
 
-## $top and $skip
-
-Paginate results. Rock returns a maximum number of records per request (often 1000).
-
-| Parameter | Description |
-|-----------|-------------|
-| `$top` | Maximum number of records to return |
-| `$skip` | Number of records to skip |
-
-### Manual Pagination
+## Pagination
 
 ```bash
-# Page 1
-rock raw get "/api/People?\$top=100&\$skip=0" --json
+# First page
+--take 100 --offset 0
 
-# Page 2
-rock raw get "/api/People?\$top=100&\$skip=100" --json
+# Second page
+--take 100 --offset 100
 
-# Page 3
-rock raw get "/api/People?\$top=100&\$skip=200" --json
+# Third page
+--take 100 --offset 200
 ```
 
-### CLI Built-In Pagination
+Always use --sort with pagination to ensure consistent ordering.
 
-The `--top` flag on dedicated commands maps to `$top`:
+## Complete Query Examples
+
+### People Queries
 
 ```bash
-rock people search --name "Smith" --top 10 --json
+# Find people by last name with selected fields
+rock resource search People \
+  --where 'LastName == "Smith"' \
+  --select 'new (Id, FirstName, LastName, Email)' \
+  --sort 'FirstName' \
+  --take 20
+
+# Find people at a specific campus
+rock resource search People \
+  --where 'PrimaryCampusId == 1 && RecordStatusValueId == 3' \
+  --take 50
+
+# Find people with birthdays in December
+rock resource search People \
+  --where 'BirthDate.Month == 12' \
+  --select 'new (Id, FirstName, LastName, BirthDate)' \
+  --sort 'BirthDate.Day'
+
+# Search by partial last name
+rock resource search People \
+  --where 'LastName.Contains("Smi")' \
+  --take 10
+
+# Find people by phone
+rock resource search People \
+  --where 'PhoneNumbers.Any(Number.StartsWith("5551234"))' \
+  --take 5
 ```
 
-The CLI also provides an internal `paginate()` utility that automatically walks through all pages when fetching large datasets.
-
-## loadAttributes
-
-Request attribute values on entities. This is a Rock-specific parameter, not standard OData.
-
-| Value | Description |
-|-------|-------------|
-| `simple` | Return attribute values as simple key-value pairs |
-| `expanded` | Return attribute values with full metadata (type, description, etc.) |
-
-### When to Use Each
-
-- Use `simple` for most cases -- returns `AttributeValues` as `{ "Key": { "Value": "...", "ValueFormatted": "..." } }`
-- Use `expanded` when you need attribute metadata (field type, categories, display options)
-
-### CLI Usage
+### Group Queries
 
 ```bash
-# Via dedicated command
-rock people get 123 --attributes --json    # Uses loadAttributes=simple
-rock groups get 42 --attributes --json     # Uses loadAttributes=simple
+# Active small groups at campus 1
+rock resource search Group \
+  --where 'GroupTypeId == 25 && IsActive == true && CampusId == 1' \
+  --select 'new (Id, Name, Description, GroupCapacity)' \
+  --sort 'Name'
 
-# Via raw for expanded
-rock raw get "/api/People/123?loadAttributes=expanded" --json
+# Find child groups under a parent
+rock resource search Group \
+  --where 'ParentGroupId == 42' \
+  --sort 'Name'
+
+# Active members of a group
+rock resource search GroupMember \
+  --where 'GroupId == 42 && GroupMemberStatus == 1' \
+  --select 'new (Id, PersonId, GroupRoleId)'
+
+# All groups a person belongs to
+rock resource search GroupMember \
+  --where 'PersonId == 789 && GroupMemberStatus == 1' \
+  --select 'new (Id, GroupId, GroupRoleId)'
 ```
 
-### Combining with Other Parameters
+### Financial Queries
 
 ```bash
-rock raw get "/api/People?\$filter=LastName eq 'Smith'&\$top=10&loadAttributes=simple" --json
+# Transactions for a person in 2025
+rock resource search FinancialTransaction \
+  --where 'AuthorizedPersonAliasId == 456 && TransactionDateTime >= DateTime(2025, 1, 1) && TransactionDateTime < DateTime(2026, 1, 1)' \
+  --sort 'TransactionDateTime desc'
+
+# Active financial accounts
+rock resource search FinancialAccount \
+  --where 'IsActive == true' \
+  --select 'new (Id, Name, IsTaxDeductible)' \
+  --sort 'Name'
+
+# Open (status=1) financial batches
+rock resource search FinancialBatch \
+  --where 'Status == 1' \
+  --sort 'BatchStartDateTime desc' \
+  --take 10
+
+# Transaction details for a transaction
+rock resource search FinancialTransactionDetail \
+  --where 'TransactionId == 5001' \
+  --select 'new (Id, Amount, AccountId)'
 ```
 
-Note: `loadAttributes` does NOT use the `$` prefix. It is a Rock-specific query parameter.
-
-## Combining Parameters
-
-Build complex queries by combining multiple OData parameters:
+### Workflow Queries
 
 ```bash
-# Filter + select + orderby + top
-rock raw get "/api/People?\$filter=PrimaryCampusId eq 1&\$select=Id,FirstName,LastName&\$orderby=LastName&\$top=50" --json
+# Active workflow types
+rock resource search WorkflowType \
+  --where 'IsActive == true' \
+  --select 'new (Id, Name, Description)' \
+  --sort 'Name'
 
-# Filter + expand + top + loadAttributes
-rock raw get "/api/GroupMembers?\$filter=GroupId eq 42&\$expand=Person&\$top=100&loadAttributes=simple" --json
+# Incomplete workflows of a specific type
+rock resource search Workflow \
+  --where 'WorkflowTypeId == 15 && CompletedDateTime == null' \
+  --sort 'ActivatedDateTime desc' \
+  --take 20
+
+# Workflows activated in a date range
+rock resource search Workflow \
+  --where 'ActivatedDateTime >= DateTime(2025, 1, 1) && ActivatedDateTime < DateTime(2025, 4, 1)' \
+  --sort 'ActivatedDateTime desc'
 ```
 
-### Parameter Summary
+### Content Queries
 
-| Parameter | Prefix | Purpose |
-|-----------|--------|---------|
-| `$filter` | `$` | Filter rows |
-| `$select` | `$` | Choose columns |
-| `$expand` | `$` | Join related entities |
-| `$orderby` | `$` | Sort results |
-| `$top` | `$` | Limit result count |
-| `$skip` | `$` | Offset for pagination |
-| `loadAttributes` | none | Load attribute values |
+```bash
+# Approved content items in a channel, newest first
+rock resource search ContentChannelItem \
+  --where 'ContentChannelId == 5 && Status == 2' \
+  --sort 'StartDateTime desc' \
+  --take 20
+
+# Pending content needing approval
+rock resource search ContentChannelItem \
+  --where 'Status == 1' \
+  --sort 'CreatedDateTime desc'
+
+# Search by title
+rock resource search ContentChannelItem \
+  --where 'Title.Contains("Easter")' \
+  --select 'new (Id, Title, Status, StartDateTime)'
+```
 
 ## Common Gotchas
 
-### 1. Attributes Cannot Be Filtered
-
+### 1. Dynamic LINQ, NOT OData
 ```
-# WRONG: this will return a 400 error
-$filter=BaptismDate gt datetime'2025-01-01'
-
-# RIGHT: load attributes and filter client-side
-/api/People?$top=500&loadAttributes=simple
+WRONG: --where "LastName eq 'Smith'"
+RIGHT: --where 'LastName == "Smith"'
 ```
 
-### 2. DateTime Requires the datetime Prefix
-
-```
-# WRONG
-$filter=TransactionDateTime ge '2025-01-01'
-
-# RIGHT
-$filter=TransactionDateTime ge datetime'2025-01-01'
-```
-
-### 3. String Values Need Single Quotes
-
-```
-# WRONG
-$filter=LastName eq Smith
-
-# RIGHT
-$filter=LastName eq 'Smith'
-```
-
-### 4. Integer and Boolean Values Must NOT Have Quotes
-
-```
-# WRONG
-$filter=CampusId eq '1'
-
-# RIGHT
-$filter=CampusId eq 1
-```
-
-### 5. Shell Escaping with $
-
-The `$` character is special in bash. Escape it in shell commands:
-
+### 2. String Values Use Double Quotes Inside Single Quotes
 ```bash
-# Use backslash to escape $
-rock raw get "/api/People?\$filter=LastName eq 'Smith'" --json
-
-# Or use single quotes for the entire URL (no escaping needed)
-rock raw get '/api/People?$filter=LastName eq '\''Smith'\''' --json
+# The outer single quotes are for the shell, inner double quotes for LINQ
+--where 'LastName == "Smith"'
 ```
 
-### 6. $expand Does Not Work on All Entities
-
-Some entities have limited navigation properties. If `$expand` returns an error, check the Rock RMS API documentation for supported navigation properties on that entity.
-
-### 7. $top Default Limits
-
-Rock imposes a server-side maximum (often 1000 records). Even if you request `$top=5000`, the server may cap the result. Use `$skip` to paginate through larger datasets.
-
-### 8. loadAttributes Has No $ Prefix
-
+### 3. DateTime Uses Constructor Syntax
 ```
-# WRONG
-$loadAttributes=simple
-
-# RIGHT
-loadAttributes=simple
+WRONG: --where 'TransactionDateTime >= "2025-01-01"'
+RIGHT: --where 'TransactionDateTime >= DateTime(2025, 1, 1)'
 ```
 
-### 9. PersonId vs PersonAliasId
+### 4. Field Names Are PascalCase
+```
+WRONG: --where 'lastname == "Smith"'
+RIGHT: --where 'LastName == "Smith"'
+```
 
-Many Rock entities reference `PersonAliasId`, not `PersonId`. A person can have multiple aliases (from merges). Use the correct field:
-
+### 5. Attributes Cannot Be Filtered Server-Side
 ```bash
-# Find a person's alias ID
-rock raw get "/api/PersonAlias?\$filter=PersonId eq 123&\$top=1" --json
+# WRONG: attributes are not database fields
+--where 'BaptismDate > DateTime(2025, 1, 1)'
+
+# RIGHT: fetch attributes separately and filter client-side
+rock resource attributes People 123
 ```
 
-### 10. Filter on Related Entity Fields
-
-To filter on a related entity's field, use the navigation path:
-
-```
-# Filter transactions by payment detail's account
-FinancialPaymentDetail/FinancialAccountId eq 7
+### 6. PersonId vs PersonAliasId
+Many entities use PersonAliasId. Find it first:
+```bash
+rock resource search PersonAlias --where 'PersonId == 123' --take 1
 ```
 
-Not all nested paths are supported. Test queries or consult Rock API docs for your version.
+### 7. Shell Quoting
+Use single quotes for --where to prevent shell interpolation:
+```bash
+# Good: single quotes protect the expression
+rock resource search People --where 'LastName == "Smith"'
+
+# Bad: double quotes cause shell issues with special characters
+rock resource search People --where "LastName == \"Smith\""
+```
