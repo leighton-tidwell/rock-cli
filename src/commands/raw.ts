@@ -7,7 +7,7 @@ export function makeRawCommand(): Command {
   const raw = new Command("raw")
     .description("Make a raw API request")
     .argument("<method>", "HTTP method (GET, POST, PUT, PATCH, DELETE)")
-    .argument("<path>", "API path (e.g. /People/1)")
+    .argument("<path>", "API path (e.g. /api/v2/models/people/1)")
     .option("--body <json>", "Request body as JSON string")
     .option("--profile <name>", "Profile to use")
     .action(async (method: string, path: string, opts: { body?: string; profile?: string }) => {

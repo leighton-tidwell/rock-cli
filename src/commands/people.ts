@@ -2,7 +2,7 @@ import { Command } from "commander";
 import { getActiveProfile } from "../config.ts";
 import { RockClient } from "../client.ts";
 import { output } from "../output.ts";
-import type { ODataQuery } from "../utils/odata.ts";
+import type { SearchQuery } from "../utils/search.ts";
 
 export function makePeopleCommand(): Command {
   const people = new Command("people").description("Manage people in Rock RMS");
@@ -19,26 +19,26 @@ export function makePeopleCommand(): Command {
       const profile = getActiveProfile(opts.profile);
       const client = new RockClient(profile);
 
-      const filters: string[] = [];
+      const conditions: string[] = [];
       if (opts.email) {
-        filters.push(`Email eq '${opts.email}'`);
+        conditions.push(`Email == "${opts.email}"`);
       }
       if (opts.name) {
-        filters.push(`LastName eq '${opts.name}' or NickName eq '${opts.name}'`);
+        conditions.push(`(LastName == "${opts.name}" || NickName == "${opts.name}")`);
       }
       if (opts.phone) {
-        filters.push(`PhoneNumbers/any(a:startswith(a/Number, '${opts.phone}'))`);
+        conditions.push(`PhoneNumbers.Any(Number.StartsWith("${opts.phone}"))`);
       }
 
-      const query: ODataQuery = {};
-      if (filters.length > 0) {
-        query.filter = filters.join(" and ");
+      const query: SearchQuery = {};
+      if (conditions.length > 0) {
+        query.where = conditions.join(" && ");
       }
       if (opts.top) {
-        query.top = parseInt(opts.top, 10);
+        query.take = parseInt(opts.top, 10);
       }
 
-      const result = await client.get("/api/People", query);
+      const result = await client.search("people", query);
       output(result, { json: true });
     });
 
@@ -52,13 +52,14 @@ export function makePeopleCommand(): Command {
       const profile = getActiveProfile(opts.profile);
       const client = new RockClient(profile);
 
-      const query: ODataQuery = {};
-      if (opts.attributes) {
-        query.loadAttributes = "simple";
-      }
+      const person = await client.getOne("people", id);
 
-      const result = await client.get(`/api/People/${id}`, query);
-      output(result, { json: true });
+      if (opts.attributes) {
+        const attrs = await client.getAttributes("people", id);
+        output({ ...person as Record<string, unknown>, Attributes: attrs }, { json: true });
+      } else {
+        output(person, { json: true });
+      }
     });
 
   people
@@ -86,7 +87,7 @@ export function makePeopleCommand(): Command {
         body.CampusId = parseInt(opts.campus, 10);
       }
 
-      const result = await client.post("/api/People", body);
+      const result = await client.create("people", body);
       output(result, { json: true });
     });
 
@@ -109,7 +110,7 @@ export function makePeopleCommand(): Command {
       if (opts.last) body.LastName = opts.last;
       if (opts.phone) body.PhoneNumbers = [{ Number: opts.phone }];
 
-      await client.patch(`/api/People/${id}`, body);
+      await client.update("people", id, body);
       output({ success: true }, { json: true });
     });
 
@@ -122,7 +123,11 @@ export function makePeopleCommand(): Command {
       const profile = getActiveProfile(opts.profile);
       const client = new RockClient(profile);
 
-      const result = await client.get(`/api/People/${id}/GetFamilyMembers`);
+      // Family group type GUID in Rock RMS
+      const familyGroupTypeGuid = "790E3215-3B10-442B-AF69-616C0DCB998E";
+      const result = await client.search("groupmembers", {
+        where: `PersonId == ${id} && Group.GroupType.Guid == "${familyGroupTypeGuid}"`,
+      });
       output(result, { json: true });
     });
 

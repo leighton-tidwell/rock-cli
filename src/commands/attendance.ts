@@ -2,7 +2,15 @@ import { Command } from "commander";
 import { getActiveProfile } from "../config.ts";
 import { RockClient } from "../client.ts";
 import { output } from "../output.ts";
-import type { ODataQuery } from "../utils/odata.ts";
+import type { SearchQuery } from "../utils/search.ts";
+
+/**
+ * Parse a date string (YYYY-MM-DD or similar) into Dynamic LINQ DateTime() format.
+ */
+function toLinqDate(dateStr: string): string {
+  const d = new Date(dateStr);
+  return `DateTime(${d.getFullYear()}, ${d.getMonth() + 1}, ${d.getDate()})`;
+}
 
 export function makeAttendanceCommand(): Command {
   const attendance = new Command("attendance")
@@ -10,7 +18,7 @@ export function makeAttendanceCommand(): Command {
 
   attendance
     .command("list")
-    .description("List attendance records with optional OData filters")
+    .description("List attendance records with optional filters")
     .option("--group <id>", "Filter by GroupId")
     .option("--date <date>", "Filter by exact date")
     .option("--person <id>", "Filter by PersonAliasId")
@@ -30,22 +38,22 @@ export function makeAttendanceCommand(): Command {
       const profile = getActiveProfile(opts.profile);
       const client = new RockClient(profile);
 
-      const filters: string[] = [];
-      if (opts.group) filters.push(`GroupId eq ${opts.group}`);
-      if (opts.person) filters.push(`PersonAliasId eq ${opts.person}`);
-      if (opts.date) filters.push(`StartDateTime eq datetime'${opts.date}'`);
-      if (opts.from) filters.push(`StartDateTime ge datetime'${opts.from}'`);
-      if (opts.to) filters.push(`StartDateTime le datetime'${opts.to}'`);
+      const conditions: string[] = [];
+      if (opts.group) conditions.push(`GroupId == ${opts.group}`);
+      if (opts.person) conditions.push(`PersonAliasId == ${opts.person}`);
+      if (opts.date) conditions.push(`StartDateTime == ${toLinqDate(opts.date)}`);
+      if (opts.from) conditions.push(`StartDateTime >= ${toLinqDate(opts.from)}`);
+      if (opts.to) conditions.push(`StartDateTime <= ${toLinqDate(opts.to)}`);
 
-      const query: ODataQuery = {};
-      if (filters.length > 0) {
-        query.filter = filters.join(" and ");
+      const query: SearchQuery = {};
+      if (conditions.length > 0) {
+        query.where = conditions.join(" && ");
       }
       if (opts.top) {
-        query.top = parseInt(opts.top, 10);
+        query.take = parseInt(opts.top, 10);
       }
 
-      const result = await client.get("/api/Attendances", query);
+      const result = await client.search("attendances", query);
       output(result, { json: true });
     });
 
@@ -74,7 +82,7 @@ export function makeAttendanceCommand(): Command {
         StartDateTime: opts.date,
       };
 
-      const result = await client.post("/api/Attendances", body);
+      const result = await client.create("attendances", body);
       output(result, { json: true });
     });
 

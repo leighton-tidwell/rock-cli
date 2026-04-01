@@ -2,7 +2,7 @@ import { Command } from "commander";
 import { getActiveProfile } from "../config.ts";
 import { RockClient } from "../client.ts";
 import { output } from "../output.ts";
-import type { ODataQuery } from "../utils/odata.ts";
+import type { SearchQuery } from "../utils/search.ts";
 
 export function makeGivingCommand(): Command {
   const giving = new Command("giving").description("Financial giving commands");
@@ -20,29 +20,31 @@ export function makeGivingCommand(): Command {
       const profile = getActiveProfile(opts.profile);
       const client = new RockClient(profile);
 
-      const filters: string[] = [];
+      const conditions: string[] = [];
       if (opts.person) {
-        filters.push(`AuthorizedPersonAliasId eq ${opts.person}`);
+        conditions.push(`AuthorizedPersonAliasId == ${opts.person}`);
       }
       if (opts.from) {
-        filters.push(`TransactionDateTime ge datetime'${opts.from}'`);
+        const [y, m, d] = opts.from.split("-").map(Number);
+        conditions.push(`TransactionDateTime >= DateTime(${y}, ${m}, ${d})`);
       }
       if (opts.to) {
-        filters.push(`TransactionDateTime le datetime'${opts.to}'`);
+        const [y, m, d] = opts.to.split("-").map(Number);
+        conditions.push(`TransactionDateTime <= DateTime(${y}, ${m}, ${d})`);
       }
       if (opts.account) {
-        filters.push(`FinancialPaymentDetail/FinancialAccountId eq ${opts.account}`);
+        conditions.push(`FinancialPaymentDetail.FinancialAccountId == ${opts.account}`);
       }
 
-      const query: ODataQuery = {};
-      if (filters.length > 0) {
-        query.filter = filters.join(" and ");
+      const query: SearchQuery = {};
+      if (conditions.length > 0) {
+        query.where = conditions.join(" && ");
       }
       if (opts.top) {
-        query.top = parseInt(opts.top, 10);
+        query.take = parseInt(opts.top, 10);
       }
 
-      const result = await client.get("/api/FinancialTransactions", query);
+      const result = await client.search("financialtransactions", query);
       output(result, { json: true });
     });
 
@@ -53,7 +55,7 @@ export function makeGivingCommand(): Command {
     .action(async (opts) => {
       const profile = getActiveProfile(opts.profile);
       const client = new RockClient(profile);
-      const result = await client.get("/api/FinancialAccounts");
+      const result = await client.search("financialaccounts");
       output(result, { json: true });
     });
 
@@ -69,29 +71,27 @@ export function makeGivingCommand(): Command {
       const personId = parseInt(opts.person, 10);
       const year = parseInt(opts.year, 10);
 
-      const filters = [
-        `AuthorizedPersonAliasId eq ${personId}`,
-        `TransactionDateTime ge datetime'${year}-01-01'`,
-        `TransactionDateTime le datetime'${year}-12-31'`,
-      ];
-
-      const query: ODataQuery = {
-        filter: filters.join(" and "),
+      const query: SearchQuery = {
+        where: [
+          `AuthorizedPersonAliasId == ${personId}`,
+          `TransactionDateTime >= DateTime(${year}, 1, 1)`,
+          `TransactionDateTime <= DateTime(${year}, 12, 31)`,
+        ].join(" && "),
       };
 
-      const transactions = await client.get<{ TotalAmount: number }[]>(
-        "/api/FinancialTransactions",
+      const result = await client.search<{ TotalAmount: number }>(
+        "financialtransactions",
         query
       );
 
-      const totalAmount = transactions.reduce((sum, t) => sum + (t.TotalAmount || 0), 0);
+      const totalAmount = result.items.reduce((sum, t) => sum + (t.TotalAmount || 0), 0);
       const totalRounded = Math.round(totalAmount * 100) / 100;
 
       output(
         {
           person: personId,
           year,
-          transactionCount: transactions.length,
+          transactionCount: result.count,
           totalAmount: totalRounded,
         },
         { json: true }

@@ -2,14 +2,14 @@ import { Command } from "commander";
 import { getActiveProfile } from "../config.ts";
 import { RockClient } from "../client.ts";
 import { output } from "../output.ts";
-import type { ODataQuery } from "../utils/odata.ts";
+import type { SearchQuery } from "../utils/search.ts";
 
 export function makeGroupsCommand(): Command {
   const groups = new Command("groups").description("Manage Rock groups");
 
   groups
     .command("list")
-    .description("List groups with optional OData filters")
+    .description("List groups with optional filters")
     .option("--type <groupTypeId>", "Filter by GroupTypeId")
     .option("--campus <campusId>", "Filter by CampusId")
     .option("--top <n>", "Limit number of results")
@@ -18,23 +18,23 @@ export function makeGroupsCommand(): Command {
       const profile = getActiveProfile(opts.profile);
       const client = new RockClient(profile);
 
-      const query: ODataQuery = {};
-      const filters: Record<string, unknown> = {};
-
+      const conditions: string[] = [];
       if (opts.type) {
-        filters.GroupTypeId = Number(opts.type);
+        conditions.push(`GroupTypeId == ${opts.type}`);
       }
       if (opts.campus) {
-        filters.CampusId = Number(opts.campus);
-      }
-      if (Object.keys(filters).length > 0) {
-        query.filter = filters;
-      }
-      if (opts.top) {
-        query.top = Number(opts.top);
+        conditions.push(`CampusId == ${opts.campus}`);
       }
 
-      const result = await client.get("/api/Groups", Object.keys(query).length > 0 ? query : undefined);
+      const query: SearchQuery = {};
+      if (conditions.length > 0) {
+        query.where = conditions.join(" && ");
+      }
+      if (opts.top) {
+        query.take = parseInt(opts.top, 10);
+      }
+
+      const result = await client.search("groups", query);
       output(result, { json: true });
     });
 
@@ -48,13 +48,14 @@ export function makeGroupsCommand(): Command {
       const profile = getActiveProfile(opts.profile);
       const client = new RockClient(profile);
 
-      const query: ODataQuery = {};
-      if (opts.attributes) {
-        query.loadAttributes = "simple";
-      }
+      const group = await client.getOne("groups", id);
 
-      const result = await client.get(`/api/Groups/${id}`, Object.keys(query).length > 0 ? query : undefined);
-      output(result, { json: true });
+      if (opts.attributes) {
+        const attrs = await client.getAttributes("groups", id);
+        output({ ...group as Record<string, unknown>, Attributes: attrs }, { json: true });
+      } else {
+        output(group, { json: true });
+      }
     });
 
   groups
@@ -66,12 +67,9 @@ export function makeGroupsCommand(): Command {
       const profile = getActiveProfile(opts.profile);
       const client = new RockClient(profile);
 
-      const query: ODataQuery = {
-        filter: `GroupId eq ${id}`,
-        expand: ["Person"],
-      };
-
-      const result = await client.get("/api/GroupMembers", query);
+      const result = await client.search("groupmembers", {
+        where: `GroupId == ${id}`,
+      });
       output(result, { json: true });
     });
 
@@ -93,7 +91,7 @@ export function makeGroupsCommand(): Command {
         GroupMemberStatus: 1,
       };
 
-      const result = await client.post("/api/GroupMembers", body);
+      const result = await client.create("groupmembers", body);
       output(result, { json: true });
     });
 
@@ -107,18 +105,16 @@ export function makeGroupsCommand(): Command {
       const profile = getActiveProfile(opts.profile);
       const client = new RockClient(profile);
 
-      const query: ODataQuery = {
-        filter: `GroupId eq ${groupId} and PersonId eq ${personId}`,
-      };
+      const result = await client.search<{ Id: number }>("groupmembers", {
+        where: `GroupId == ${groupId} && PersonId == ${personId}`,
+      });
 
-      const members = await client.get<Array<{ Id: number }>>("/api/GroupMembers", query);
-
-      if (!members || members.length === 0) {
+      if (!result.items || result.items.length === 0) {
         throw new Error(`No GroupMember found for GroupId=${groupId} and PersonId=${personId}`);
       }
 
-      await client.delete(`/api/GroupMembers/${members[0]!.Id}`);
-      output({ success: true, deletedId: members[0]!.Id }, { json: true });
+      await client.remove("groupmembers", result.items[0]!.Id);
+      output({ success: true, deletedId: result.items[0]!.Id }, { json: true });
     });
 
   return groups;

@@ -2,6 +2,7 @@ import { Command } from "commander";
 import { getActiveProfile } from "../config.ts";
 import { RockClient } from "../client.ts";
 import { output } from "../output.ts";
+import type { SearchQuery } from "../utils/search.ts";
 
 export function makeContentCommand(): Command {
   const content = new Command("content").description("Manage content channels and items");
@@ -13,7 +14,7 @@ export function makeContentCommand(): Command {
     .action(async (opts: { profile?: string }) => {
       const profile = getActiveProfile(opts.profile);
       const client = new RockClient(profile);
-      const result = await client.get("/ContentChannels");
+      const result = await client.search("contentchannels");
       output(result, { json: true });
     });
 
@@ -26,13 +27,13 @@ export function makeContentCommand(): Command {
     .action(async (channelId: string, opts: { top?: string; profile?: string }) => {
       const profile = getActiveProfile(opts.profile);
       const client = new RockClient(profile);
-      const query: { filter?: string; top?: number } = {
-        filter: `ContentChannelId eq ${channelId}`,
+      const query: SearchQuery = {
+        where: `ContentChannelId == ${channelId}`,
       };
       if (opts.top) {
-        query.top = parseInt(opts.top, 10);
+        query.take = parseInt(opts.top, 10);
       }
-      const result = await client.get("/ContentChannelItems", query);
+      const result = await client.search("contentchannelitems", query);
       output(result, { json: true });
     });
 
@@ -57,7 +58,7 @@ export function makeContentCommand(): Command {
         if (opts.title) body.Title = opts.title;
         if (opts.content) body.Content = opts.content;
         if (opts.status) body.Status = parseInt(opts.status, 10);
-        const result = await client.post("/ContentChannelItems", body);
+        const result = await client.create("contentchannelitems", body);
         output(result, { json: true });
       }
     );

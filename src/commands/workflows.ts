@@ -2,7 +2,7 @@ import { Command } from "commander";
 import { getActiveProfile } from "../config.ts";
 import { RockClient } from "../client.ts";
 import { output } from "../output.ts";
-import type { ODataQuery } from "../utils/odata.ts";
+import type { SearchQuery } from "../utils/search.ts";
 
 export function makeWorkflowsCommand(): Command {
   const workflows = new Command("workflows")
@@ -18,13 +18,13 @@ export function makeWorkflowsCommand(): Command {
       const profile = getActiveProfile(opts.profile);
       const client = new RockClient(profile);
 
-      const endpoint = opts.type === "workflows" ? "/api/Workflows" : "/api/WorkflowTypes";
-      const query: ODataQuery = {};
+      const resource = opts.type === "workflows" ? "workflows" : "workflowtypes";
+      const query: SearchQuery = {};
       if (opts.top) {
-        query.top = parseInt(opts.top, 10);
+        query.take = parseInt(opts.top, 10);
       }
 
-      const result = await client.get(endpoint, query);
+      const result = await client.search(resource, query);
       output(result, { json: true });
     });
 
@@ -52,7 +52,7 @@ export function makeWorkflowsCommand(): Command {
       const profile = getActiveProfile(opts.profile);
       const client = new RockClient(profile);
 
-      const result = await client.get(`/api/Workflows/${id}`);
+      const result = await client.getOne("workflows", id);
       output(result, { json: true });
     });
 

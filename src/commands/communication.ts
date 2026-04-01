@@ -2,6 +2,7 @@ import { Command } from "commander";
 import { getActiveProfile } from "../config.ts";
 import { RockClient } from "../client.ts";
 import { output } from "../output.ts";
+import type { SearchQuery } from "../utils/search.ts";
 
 export function makeCommCommand(): Command {
   const comm = new Command("comm").description("Communication commands");
@@ -17,7 +18,7 @@ export function makeCommCommand(): Command {
       const profile = getActiveProfile(opts.profile);
       const client = new RockClient(profile);
 
-      const result = await client.post("/api/Communications", {
+      const result = await client.create("communications", {
         CommunicationMediumEntityTypeId: 2,
         Recipients: [{ PersonAliasId: opts.to }],
         SMSFromDefinedValueId: opts.from,
@@ -39,7 +40,7 @@ export function makeCommCommand(): Command {
       const profile = getActiveProfile(opts.profile);
       const client = new RockClient(profile);
 
-      const result = await client.post("/api/Communications", {
+      const result = await client.create("communications", {
         CommunicationMediumEntityTypeId: 1,
         Recipients: [{ PersonAliasId: opts.to }],
         CommunicationTemplateId: opts.template,
@@ -59,17 +60,12 @@ export function makeCommCommand(): Command {
       const profile = getActiveProfile(opts.profile);
       const client = new RockClient(profile);
 
-      const query: { filter?: string } = {};
+      const query: SearchQuery = {};
       if (opts.type) {
-        query.filter = `MediumEntityType eq '${opts.type}'`;
+        query.where = `MediumEntityType == "${opts.type}"`;
       }
 
-      const hasFilter = Object.keys(query).length > 0;
-      const result = await client.get<unknown[]>(
-        "/api/CommunicationTemplates",
-        hasFilter ? query : undefined
-      );
-
+      const result = await client.search("communicationtemplates", query);
       output(result, { json: true });
     });
 

@@ -13,7 +13,7 @@ export function makeCampusesCommand(): Command {
     .action(async (opts: { profile?: string }) => {
       const profile = getActiveProfile(opts.profile);
       const client = new RockClient(profile);
-      const result = await client.get("/Campuses");
+      const result = await client.search("campuses");
       output(result, { json: true });
     });
 
@@ -25,7 +25,7 @@ export function makeCampusesCommand(): Command {
     .action(async (id: string, opts: { profile?: string }) => {
       const profile = getActiveProfile(opts.profile);
       const client = new RockClient(profile);
-      const result = await client.get(`/Campuses/${id}`);
+      const result = await client.getOne("campuses", id);
       output(result, { json: true });
     });
 
