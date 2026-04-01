@@ -1,17 +1,28 @@
 {
-  "name": "rock-cli",
-  "module": "index.ts",
-  "type": "module",
-  "bin": {
-    "rock": "./bin/rock.ts"
-  },
-  "devDependencies": {
-    "@types/bun": "latest"
-  },
-  "peerDependencies": {
-    "typescript": "^5"
-  },
-  "dependencies": {
-    "commander": "^13"
-  }
+	"name": "rock-cli",
+	"module": "index.ts",
+	"type": "module",
+	"bin": {
+		"rock": "./bin/rock.ts"
+	},
+	"scripts": {
+		"lint": "biome check .",
+		"lint:fix": "biome check --write .",
+		"format": "biome format --write .",
+		"typecheck": "bun x tsc --noEmit",
+		"build": "bun build bin/rock.ts --outdir dist",
+		"dev": "bun run bin/rock.ts",
+		"prepare": "lefthook install"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.4.10",
+		"@types/bun": "latest",
+		"lefthook": "^2.1.4"
+	},
+	"peerDependencies": {
+		"typescript": "^5"
+	},
+	"dependencies": {
+		"commander": "^13"
+	}
 }

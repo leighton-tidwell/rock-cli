@@ -8,7 +8,7 @@ Thanks for your interest in contributing! This is a CLI tool for the Rock RMS v2
 git clone https://github.com/leighton-tidwell/rock-cli.git
 cd rock-cli
 fnm use            # uses .node-version (v24.14.1)
-bun install
+bun install        # installs deps + sets up git hooks automatically
 ```
 
 Run locally:
@@ -42,7 +42,7 @@ src/
     search.ts            # Fuzzy search for resource names
 docs/                    # Documentation
 skills/rock/             # AI agent skill files (see below)
-tests/                   # Test directory (empty — contributions welcome!)
+tests/                   # Test directory
 ```
 
 ## How It Works
@@ -57,15 +57,36 @@ Just add an entry to `src/registry.ts` — that's it. The generic resource comma
 
 You need access to a Rock RMS instance with a v2 API key. If you don't have one:
 
-- Use Rock's [demo instance](https://rock.rockrms.com/) if available
 - Set up a local Rock instance via their [installer](https://www.rockrms.com/Rock/Developer)
 - Or test against the endpoints you have access to and note which Rock version you tested with
 
 There's no automated test suite yet — this is a great area to contribute!
 
+## Code Quality Tooling
+
+This project uses modern Bun-ecosystem tooling for code quality:
+
+- **[Biome](https://biomejs.dev/)** — All-in-one linter, formatter, and import organizer (replaces ESLint + Prettier)
+- **[Lefthook](https://github.com/evilmartians/lefthook)** — Git hooks manager that runs Biome and typechecking on pre-commit
+- **GitHub Actions CI** — Runs lint, typecheck, and build on every push/PR to `main`
+
+Git hooks are installed automatically when you run `bun install` (via the `prepare` script). No extra setup needed.
+
+### Available Scripts
+
+| Command | Description |
+|---------|-------------|
+| `bun run lint` | Check for lint and formatting issues |
+| `bun run lint:fix` | Auto-fix lint and formatting issues |
+| `bun run format` | Format all files |
+| `bun run typecheck` | Run TypeScript type checking |
+| `bun run build` | Build the CLI to `dist/` |
+| `bun run dev` | Run the CLI in development mode |
+
 ## Code Style
 
 - TypeScript, strict mode
+- Biome handles formatting (tabs, 100 char line width) and linting
 - Keep it simple — small functions, clear names
 - Use Bun APIs where appropriate
 - No unnecessary dependencies
@@ -74,8 +95,10 @@ There's no automated test suite yet — this is a great area to contribute!
 
 1. Fork the repo and create a branch from `main`
 2. Make your changes
-3. Test locally with `bun run bin/rock.ts` against a real Rock instance if possible
-4. Open a PR with a clear description of what changed and why
+3. Pre-commit hooks will automatically lint, format, and typecheck your changes
+4. Test locally with `bun run bin/rock.ts` against a real Rock instance if possible
+5. Open a PR with a clear description of what changed and why
+6. CI will run lint, typecheck, and build checks on your PR
 
 ## Reporting Issues
 
