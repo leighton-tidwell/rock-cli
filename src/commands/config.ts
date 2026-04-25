@@ -1,4 +1,7 @@
 import { execSync } from "node:child_process";
+import { readdirSync, rmSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { Command } from "commander";
 import { loadConfig, type RockConfig, saveConfig } from "../config.ts";
 
@@ -90,15 +93,31 @@ export function makeConfigCommand(): Command {
 		.action(() => {
 			console.log("Upgrading rock-cli to latest version...");
 			try {
-				console.log("Clearing bun cache...");
-				execSync("bun remove -g rock-cli", {
-					encoding: "utf-8",
-					stdio: "pipe",
-				});
-				execSync("bun cache clean", {
-					encoding: "utf-8",
-					stdio: "pipe",
-				});
+				console.log("Removing existing global install...");
+				try {
+					execSync("bun remove -g rock-cli", {
+						encoding: "utf-8",
+						stdio: "pipe",
+					});
+				} catch {
+					// Not installed yet — proceed to install.
+				}
+
+				// `bun pm cache rm` requires a package.json in cwd, which
+				// `rock config upgrade` doesn't have. Drop any cached rock-cli
+				// tarballs directly so the next install fetches the latest commit.
+				console.log("Clearing rock-cli cache entries...");
+				const cacheDir = join(homedir(), ".bun", "install", "cache");
+				try {
+					for (const name of readdirSync(cacheDir)) {
+						if (name.includes("rock-cli")) {
+							rmSync(join(cacheDir, name), { recursive: true, force: true });
+						}
+					}
+				} catch {
+					// Cache dir missing on a fresh bun install — fine.
+				}
+
 				console.log("Installing latest from GitHub...");
 				const output = execSync("bun add -g github:leighton-tidwell/rock-cli", {
 					encoding: "utf-8",
