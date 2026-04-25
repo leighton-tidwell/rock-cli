@@ -446,6 +446,7 @@ rock resource search People --where 'LastName == "Smith"' --take 100 --offset 20
 | [references/resources.md](references/resources.md) | Full list of all 317 resources organized by category |
 | [references/querying.md](references/querying.md) | Dynamic LINQ query syntax, operators, and examples |
 | [references/troubleshooting.md](references/troubleshooting.md) | Error diagnosis and common fixes |
+| [references/sql.md](references/sql.md) | Direct SQL access via the Triumph Magnus plugin (requires `magnus: true` on the profile) |
 
 ## Ready-to-Use Templates
 

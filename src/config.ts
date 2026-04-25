@@ -6,6 +6,11 @@ export interface RockProfile {
 	url: string;
 	apiKey: string;
 	defaultCampusId?: number;
+	/**
+	 * Set to `true` if the Triumph Tech Magnus plugin is installed on this Rock
+	 * instance. Required to use the `rock sql` subcommand. Defaults to `false`.
+	 */
+	magnus?: boolean;
 }
 
 export interface RockConfig {

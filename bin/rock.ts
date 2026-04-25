@@ -4,6 +4,7 @@ import { Command } from "commander";
 import { makeConfigCommand } from "../src/commands/config.ts";
 import { makeRawCommand } from "../src/commands/raw.ts";
 import { makeResourceCommand } from "../src/commands/resource.ts";
+import { makeSqlCommand } from "../src/commands/sql.ts";
 
 const program = new Command();
 
@@ -21,5 +22,6 @@ program
 program.addCommand(makeConfigCommand());
 program.addCommand(makeRawCommand());
 program.addCommand(makeResourceCommand());
+program.addCommand(makeSqlCommand());
 
 program.parse();
