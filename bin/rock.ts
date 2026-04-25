@@ -2,10 +2,10 @@
 
 import { Command } from "commander";
 import { makeConfigCommand } from "../src/commands/config.ts";
+import { makeFilesCommand } from "../src/commands/files.ts";
 import { makeRawCommand } from "../src/commands/raw.ts";
 import { makeResourceCommand } from "../src/commands/resource.ts";
 import { makeSqlCommand } from "../src/commands/sql.ts";
-import { makeFilesCommand } from "../src/commands/files.ts";
 
 const program = new Command();
 
