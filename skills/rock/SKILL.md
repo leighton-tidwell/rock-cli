@@ -9,8 +9,11 @@ description: >
   "check prayer requests", "view connections", "manage events", "view registrations",
   "check schedules", "manage security roles", "view steps", "check streaks",
   "manage tags", "view notes", "check notifications", "manage learning courses",
+  "browse the Rock server filesystem", "upload a plugin file", "edit a theme file",
+  "deploy a custom block", "list files in /Plugins", "download a Rock theme file",
   or any task involving Rock RMS church management data.
-  The CLI uses a single generic resource command that covers all 317 Rock RMS v2 API controllers.
+  The CLI uses a single generic resource command that covers all 317 Rock RMS v2 API controllers,
+  plus dedicated `rock sql` and `rock files` commands for the Triumph Tech Magnus REST endpoints.
 allowed-tools: Bash(rock:*)
 ---
 
@@ -54,6 +57,20 @@ rock resource delete <Resource> <id>                # Delete a record
 rock resource attributes <Resource> <id>            # Get attribute values for a record
 rock resource set-attributes <Resource> <id> --body <json>  # Update attribute values
 ```
+
+### Server Filesystem (Magnus plugin required — see [references/files.md](references/files.md))
+
+```bash
+rock files ls [path]                    # List a directory (default: root)
+rock files cat <path>                   # Read a file to stdout
+rock files get <remote> [local]         # Download a file
+rock files put <local> <remote>         # Upload (creates or overwrites)
+rock files write <remote>               # Overwrite existing file from stdin
+rock files rm <path>                    # Delete a file or folder
+rock files mkdir <path>                 # Create a folder
+```
+
+Roots: `/Plugins`, `/Themes`, `/Content`, `/App_Data`. Requires `"magnus": true` on the profile.
 
 ### Raw HTTP Access
 
@@ -447,6 +464,7 @@ rock resource search People --where 'LastName == "Smith"' --take 100 --offset 20
 | [references/querying.md](references/querying.md) | Dynamic LINQ query syntax, operators, and examples |
 | [references/troubleshooting.md](references/troubleshooting.md) | Error diagnosis and common fixes |
 | [references/sql.md](references/sql.md) | Direct SQL access via the Triumph Magnus plugin (requires `magnus: true` on the profile) |
+| [references/files.md](references/files.md) | Read/write the Rock server filesystem (`/Plugins`, `/Themes`, `/Content`, `/App_Data`) via Magnus (requires `magnus: true`) |
 
 ## Ready-to-Use Templates
 
