@@ -23,14 +23,18 @@ function parseBody(raw: string): unknown {
 	}
 }
 
+function rootCmd(cmd: Command): Command {
+	let c = cmd;
+	while (c.parent) c = c.parent;
+	return c;
+}
+
 function getFlags(cmd: Command): { json?: boolean; raw?: boolean; table?: boolean } {
-	const root = cmd.parent ?? cmd;
-	return root.opts();
+	return rootCmd(cmd).opts();
 }
 
 function getGlobalOpts(cmd: Command): { profile?: string; dryRun?: boolean } {
-	const root = cmd.parent ?? cmd;
-	return root.opts();
+	return rootCmd(cmd).opts();
 }
 
 function validateResource(name: string): {
