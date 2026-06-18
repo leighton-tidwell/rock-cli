@@ -3,6 +3,7 @@ import { RockClient } from "../client.ts";
 import { getActiveProfile } from "../config.ts";
 import { output } from "../output.ts";
 import { findResource, resources } from "../registry.ts";
+import { rootCmd } from "../utils/command.ts";
 import type { SearchQuery } from "../utils/search.ts";
 
 const NON_MODEL_RESOURCES = new Set([
@@ -21,12 +22,6 @@ function parseBody(raw: string): unknown {
 	} catch {
 		throw new Error(`Invalid JSON body: ${raw}`);
 	}
-}
-
-function rootCmd(cmd: Command): Command {
-	let c = cmd;
-	while (c.parent) c = c.parent;
-	return c;
 }
 
 function getFlags(cmd: Command): { json?: boolean; raw?: boolean; table?: boolean } {

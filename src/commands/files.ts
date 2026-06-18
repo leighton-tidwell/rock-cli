@@ -3,6 +3,7 @@ import { basename } from "node:path";
 import { Command } from "commander";
 import { getActiveProfile, loadConfig, type RockProfile } from "../config.ts";
 import { output } from "../output.ts";
+import { resolveProfileOverride, rootCmd } from "../utils/command.ts";
 
 // ---------------------------------------------------------------------------
 // Magnus VS Code protocol types (PascalCase wire format)
@@ -235,19 +236,28 @@ export function makeFilesCommand(): Command {
 		.option("--json", "Output as JSON")
 		.option("--raw", "Output as compact JSON")
 		.option("--profile <name>", "Profile to use")
-		.action(async (path: string, opts: { json?: boolean; raw?: boolean; profile?: string }) => {
-			const profile = resolveAndGate(opts.profile);
-			const items = await listDirectory(profile, path);
-			if (opts.json || opts.raw) {
-				output(items, { json: opts.json, raw: opts.raw });
-				return;
-			}
-			const rows = items.map((i) => ({
-				name: i.DisplayName + (i.IsFolder ? "/" : ""),
-				path: i.CopyValue || "",
-			}));
-			output(rows, { table: true });
-		});
+		.action(
+			async (
+				path: string,
+				opts: { json?: boolean; raw?: boolean; profile?: string },
+				cmd: Command,
+			) => {
+				const g = rootCmd(cmd).opts();
+				const profile = resolveAndGate(resolveProfileOverride(opts, cmd));
+				const json = opts.json ?? (g.json as boolean | undefined);
+				const raw = opts.raw ?? (g.raw as boolean | undefined);
+				const items = await listDirectory(profile, path);
+				if (json || raw) {
+					output(items, { json, raw });
+					return;
+				}
+				const rows = items.map((i) => ({
+					name: i.DisplayName + (i.IsFolder ? "/" : ""),
+					path: i.CopyValue || "",
+				}));
+				output(rows, { table: true });
+			},
+		);
 
 	// ---------------- cat ----------------
 	files
@@ -255,8 +265,8 @@ export function makeFilesCommand(): Command {
 		.description("Read a remote file and print to stdout")
 		.argument("<path>", "Remote file path")
 		.option("--profile <name>", "Profile to use")
-		.action(async (path: string, opts: { profile?: string }) => {
-			const profile = resolveAndGate(opts.profile);
+		.action(async (path: string, opts: { profile?: string }, cmd: Command) => {
+			const profile = resolveAndGate(resolveProfileOverride(opts, cmd));
 			const bytes = await readFile(profile, path);
 			process.stdout.write(bytes);
 		});
@@ -268,13 +278,20 @@ export function makeFilesCommand(): Command {
 		.argument("<remote>", "Remote file path")
 		.argument("[local]", "Local destination (defaults to basename in cwd)")
 		.option("--profile <name>", "Profile to use")
-		.action(async (remote: string, local: string | undefined, opts: { profile?: string }) => {
-			const profile = resolveAndGate(opts.profile);
-			const bytes = await readFile(profile, remote);
-			const dest = local || basename(normalizeRemotePath(remote));
-			writeFileSync(dest, bytes);
-			process.stderr.write(`Wrote ${bytes.length} bytes -> ${dest}\n`);
-		});
+		.action(
+			async (
+				remote: string,
+				local: string | undefined,
+				opts: { profile?: string },
+				cmd: Command,
+			) => {
+				const profile = resolveAndGate(resolveProfileOverride(opts, cmd));
+				const bytes = await readFile(profile, remote);
+				const dest = local || basename(normalizeRemotePath(remote));
+				writeFileSync(dest, bytes);
+				process.stderr.write(`Wrote ${bytes.length} bytes -> ${dest}\n`);
+			},
+		);
 
 	// ---------------- put ----------------
 	files
@@ -283,8 +300,8 @@ export function makeFilesCommand(): Command {
 		.argument("<local>", "Local source file")
 		.argument("<remote>", "Remote destination path or directory")
 		.option("--profile <name>", "Profile to use")
-		.action(async (local: string, remote: string, opts: { profile?: string }) => {
-			const profile = resolveAndGate(opts.profile);
+		.action(async (local: string, remote: string, opts: { profile?: string }, cmd: Command) => {
+			const profile = resolveAndGate(resolveProfileOverride(opts, cmd));
 			const content = readFileSync(local);
 			const bytes = new Uint8Array(content);
 
@@ -320,8 +337,8 @@ export function makeFilesCommand(): Command {
 		)
 		.argument("<remote>", "Remote file path (must exist)")
 		.option("--profile <name>", "Profile to use")
-		.action(async (remote: string, opts: { profile?: string }) => {
-			const profile = resolveAndGate(opts.profile);
+		.action(async (remote: string, opts: { profile?: string }, cmd: Command) => {
+			const profile = resolveAndGate(resolveProfileOverride(opts, cmd));
 			const chunks: Buffer[] = [];
 			for await (const chunk of process.stdin) {
 				chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : (chunk as Buffer));
@@ -337,8 +354,8 @@ export function makeFilesCommand(): Command {
 		.description("Delete a remote file or folder")
 		.argument("<path>", "Remote path")
 		.option("--profile <name>", "Profile to use")
-		.action(async (path: string, opts: { profile?: string }) => {
-			const profile = resolveAndGate(opts.profile);
+		.action(async (path: string, opts: { profile?: string }, cmd: Command) => {
+			const profile = resolveAndGate(resolveProfileOverride(opts, cmd));
 			const result = await deleteRemote(profile, path);
 			if (!result.ActionSuccessful) {
 				throw new Error(`Delete failed: ${result.ResponseMessage || "(no message from server)"}`);
@@ -352,8 +369,8 @@ export function makeFilesCommand(): Command {
 		.description("Create a new remote folder")
 		.argument("<path>", "Remote path of the new folder")
 		.option("--profile <name>", "Profile to use")
-		.action(async (path: string, opts: { profile?: string }) => {
-			const profile = resolveAndGate(opts.profile);
+		.action(async (path: string, opts: { profile?: string }, cmd: Command) => {
+			const profile = resolveAndGate(resolveProfileOverride(opts, cmd));
 			const { parent, name } = parentAndName(path);
 			if (!name) throw new Error("mkdir requires a folder name");
 			const result = await makeDirectory(profile, parent, name);
@@ -370,8 +387,8 @@ export function makeFilesCommand(): Command {
 		.argument("<path>", "Remote path")
 		.option("--op <op>", "Operation: list | content | delete | upload | mkdir", "content")
 		.option("--profile <name>", "Profile to use")
-		.action((path: string, opts: { op: string; profile?: string }) => {
-			const profile = resolveAndGate(opts.profile);
+		.action((path: string, opts: { op: string; profile?: string }, cmd: Command) => {
+			const profile = resolveAndGate(resolveProfileOverride(opts, cmd));
 			const map: Record<string, () => string> = {
 				list: () => listUrl(path),
 				content: () => fileContentUrl(path),

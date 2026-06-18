@@ -2,6 +2,7 @@ import { Command } from "commander";
 import { RockClient } from "../client.ts";
 import { getActiveProfile, loadConfig, type RockProfile } from "../config.ts";
 import { output } from "../output.ts";
+import { rootCmd } from "../utils/command.ts";
 
 // ---------------------------------------------------------------------------
 // Magnus protocol types (PascalCase wire format)
@@ -171,8 +172,11 @@ export function makeSqlCommand(): Command {
 					pollInterval?: string;
 					profile?: string;
 				},
+				cmd: Command,
 			) => {
-				const { profile } = resolveAndGate(opts.profile);
+				const g = rootCmd(cmd).opts();
+				const { profile } = resolveAndGate(opts.profile ?? (g.profile as string | undefined));
+				const jsonMode = opts.json ?? (g.json as boolean | undefined);
 				const client = new RockClient(profile);
 
 				let queryText: string;
@@ -209,7 +213,7 @@ export function makeSqlCommand(): Command {
 					);
 				}
 
-				printQueryResult(progress, !!opts.json);
+				printQueryResult(progress, !!jsonMode);
 			},
 		);
 
@@ -219,11 +223,13 @@ export function makeSqlCommand(): Command {
 		.description("Print server metadata (Rock version, SQL edition, database name)")
 		.option("--json", "Output as JSON")
 		.option("--profile <name>", "Profile to use")
-		.action(async (opts: { json?: boolean; profile?: string }) => {
-			const { profile } = resolveAndGate(opts.profile);
+		.action(async (opts: { json?: boolean; profile?: string }, cmd: Command) => {
+			const g = rootCmd(cmd).opts();
+			const { profile } = resolveAndGate(opts.profile ?? (g.profile as string | undefined));
+			const jsonMode = opts.json ?? (g.json as boolean | undefined);
 			const client = new RockClient(profile);
 			const result = await client.post<ConnectResponse>("/api/TriumphTech/Magnus/Sql/Connect", {});
-			if (opts.json) {
+			if (jsonMode) {
 				output(result, { json: true });
 				return;
 			}
@@ -245,8 +251,10 @@ export function makeSqlCommand(): Command {
 		.description("List tables in the database")
 		.option("--json", "Output as JSON")
 		.option("--profile <name>", "Profile to use")
-		.action(async (opts: { json?: boolean; profile?: string }) => {
-			const { profile } = resolveAndGate(opts.profile);
+		.action(async (opts: { json?: boolean; profile?: string }, cmd: Command) => {
+			const g = rootCmd(cmd).opts();
+			const { profile } = resolveAndGate(opts.profile ?? (g.profile as string | undefined));
+			const jsonMode = opts.json ?? (g.json as boolean | undefined);
 			const client = new RockClient(profile);
 
 			// Walk: root -> first DB / TablesFolder -> tables
@@ -293,7 +301,7 @@ export function makeSqlCommand(): Command {
 				tables = root.Nodes;
 			}
 
-			if (opts.json) {
+			if (jsonMode) {
 				output(tables, { json: true });
 				return;
 			}
